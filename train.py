@@ -17,7 +17,7 @@ np.random.seed(1)
 # ==============================================
 ## DATA PATH
 PATH = "./data/"
-DATA = 'ny'  # ny, la, taxi
+DATA = 'taxi'  # ny, la, taxi
 TRAIN_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_train.tsv'
 VALIDATAION_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_valid.tsv'
 TEST_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_test.tsv'
@@ -65,6 +65,7 @@ def get_acc(candidate, rank):
 		if t == p[0] and t > 0:
 			acc[0] += 1  # top1
     return acc
+
 ## Training
 print("========================================")
 print("Training..")
@@ -144,6 +145,11 @@ for i in xrange(EPOCHS):
 		sys.stdout.write("\033[F")
 		sys.stdout.write("\033[K")
 		print("Process Epoch: [{}/{}] loss : [{}]\n".format(i+1, EPOCHS, loss))
+
+print("========================================")
+print("Saving..")
+torch.save(drcf.state_dict(), 'model_' + DATA + '.m')
+
 print("========================================")
 print("Testing..")
 with torch.no_grad():
@@ -166,9 +172,6 @@ with torch.no_grad():
 		r = _.cpu().numpy()  # (100, dim)
 		mrr += get_eval_score(candidate, rank)
 		batch_acc = get_acc(candidate, rank)
-		batch_ndcg1 = utils.ndcg_at_k(_.data, 1)
-		batch_ndcg5 = utils.ndcg_at_k(_.data, 5)
-		batch_ndcg10 = utils.ndcg_at_k(_.data, 10)
 		acc[0] += batch_acc[0]
 		acc[1] += batch_acc[1]
 		acc[2] += batch_acc[2]
@@ -189,4 +192,3 @@ with torch.no_grad():
 	sys.stdout.write("\033[K")
 	print("Loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]".format(loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
 	print("NDCG@1: [{}] NDCG@5: [{}] NDCG@10: [{}]".format(ndcg[0]/acc[3][0], ndcg[1]/acc[3][0], ndcg[2]/acc[3][0]))
-
