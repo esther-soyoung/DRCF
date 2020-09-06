@@ -1,5 +1,6 @@
 from __future__ import unicode_literals, print_function, division
 import numpy as np
+import random
 import torch.optim as optim
 import torch
 from torch.autograd import Variable
@@ -11,13 +12,19 @@ import time
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
-torch.manual_seed(1)
-np.random.seed(1)
+RANDOM_SEED = 1
+torch.manual_seed(RANDOM_SEED)
+torch.cuda.manual_seed(RANDOM_SEED)
+torch.cuda.manual_seed_all(RANDOM_SEED) # if use multi-GPU
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+np.random.seed(RANDOM_SEED)
+random.seed(RANDOM_SEED)
 
 # ==============================================
 ## DATA PATH
 PATH = "./data/"
-DATA = 'taxi'  # ny, la, taxi
+DATA = 'ny'  # ny, la, taxi
 TRAIN_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_train.tsv'
 VALIDATAION_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_valid.tsv'
 TEST_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_test.tsv'

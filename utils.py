@@ -122,7 +122,7 @@ def batches(_data, BATCH_SIZE, SAMPLES_NUM, venue_frequency):
 		samples = np.random.randint(len(venue_frequency), size=(right-left, SAMPLES_NUM))
 		yield user, candidate, checkins, samples
 
-def dcg_at_k(r, k, method=0):
+def dcg_at_k(r, k, method=1):
     r = np.asfarray(r)[:k]
     if r.size:
         if method == 0:
@@ -134,7 +134,7 @@ def dcg_at_k(r, k, method=0):
     return 0.
 
 
-def ndcg_at_k(r, k, method=0):
+def ndcg_at_k(r, k, method=1):
     dcg_max = dcg_at_k(sorted(r, reverse=True), k, method)
     if not dcg_max:
         return 0.
