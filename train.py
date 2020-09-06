@@ -17,7 +17,7 @@ np.random.seed(1)
 # ==============================================
 ## DATA PATH
 PATH = "./data/"
-DATA = 'taxi'  # ny, la, taxi
+DATA = 'ny'  # ny, la, taxi
 TRAIN_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_train.tsv'
 VALIDATAION_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_valid.tsv'
 TEST_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_test.tsv'
@@ -120,10 +120,11 @@ for i in xrange(EPOCHS):
 				input_checkins = Variable(torch.cuda.LongTensor(checkins))
 				
 				# Optimizing
-				rank = drcf.module.evaluation(input_user, input_checkins).cpu().data.numpy()
+				out, rank = drcf.module.evaluation(input_user, input_checkins)
+				rank = rank.cpu().data.numpy()
+				out = out.cpu().numpy()  # (100, dim)
 				mrr += get_eval_score(candidate, rank)
 				batch_acc = get_acc(candidate, rank)
-				# import pdb;pdb.set_trace()
 				acc[0] += batch_acc[0]
 				acc[1] += batch_acc[1]
 				acc[2] += batch_acc[2]
@@ -153,19 +154,30 @@ with torch.no_grad():
 
 	batches = utils.batches(validation, 100, SAMPLE_NUM, venue_frequency)
 	acc = [0, 0, 0, 0]  # top1, top5, top10, tot
+	ndcg = [0, 0, 0]  # @1, @5, @10
 	for batch in batches:
 		user, candidate, checkins, _ = batch
-		input_user = Variable(torch.cuda.LongTensor(user), volatile=True)
-		input_checkins = Variable(torch.cuda.LongTensor(checkins), volatile=True)
+		input_user = Variable(torch.cuda.LongTensor(user))
+		input_checkins = Variable(torch.cuda.LongTensor(checkins))
 		
 		# Optimizing
-		rank = drcf.module.evaluation(input_user, input_checkins).cpu().data.numpy()
+		_, rank = drcf.module.evaluation(input_user, input_checkins)
+		rank = rank.cpu().data.numpy()
+		r = _.cpu().numpy()  # (100, dim)
 		mrr += get_eval_score(candidate, rank)
 		batch_acc = get_acc(candidate, rank)
+		batch_ndcg1 = utils.ndcg_at_k(_.data, 1)
+		batch_ndcg5 = utils.ndcg_at_k(_.data, 5)
+		batch_ndcg10 = utils.ndcg_at_k(_.data, 10)
 		acc[0] += batch_acc[0]
 		acc[1] += batch_acc[1]
 		acc[2] += batch_acc[2]
 		acc[3] += batch_acc[3]
+
+		for i in r:
+			ndcg[0] += utils.ndcg_at_k(i, 1)
+			ndcg[1] += utils.ndcg_at_k(i, 5)
+			ndcg[2] += utils.ndcg_at_k(i, 10)
 
 		# Printing Progress
 		step+=1
@@ -175,5 +187,6 @@ with torch.no_grad():
 
 	sys.stdout.write("\033[F")
 	sys.stdout.write("\033[K")
-	print("Loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]\n".format(loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
+	print("Loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]".format(loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
+	print("NDCG@1: [{}] NDCG@5: [{}] NDCG@10: [{}]".format(ndcg[0]/acc[3][0], ndcg[1]/acc[3][0], ndcg[2]/acc[3][0]))
 

@@ -2,6 +2,7 @@ from __future__ import unicode_literals, print_function, division
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
+import torch.nn.functional as F
 
 class DRCF(nn.Module):
 	def __init__(self, embedding_dim, rnn_steps, user_num, venue_num, samples_num):
@@ -179,5 +180,5 @@ class DRCF(nn.Module):
 		# output layer
 		output = self.drmf(torch.cat([grmf, mlrp, rmf], 2)).squeeze()
 		_, rank = torch.sort(output, descending=True)
-
-		return rank
+		output = F.softmax(output)
+		return output, rank
