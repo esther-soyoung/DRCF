@@ -15,6 +15,8 @@ def make_dict(_train, _validation, _test):
 	id2user = []
 	venue2id = {"<PAD>": 0}
 	id2venue = ["<PAD>"]
+	time2id = {"<PAD>": 0}
+	id2time = ["<PAD>"]
 
 	train = {}
 	validation = {}
@@ -24,40 +26,44 @@ def make_dict(_train, _validation, _test):
 		Dataset Format: user \t venue \t timestamp
 	"""
 	for line in _train+_validation+_test:
-		user, venue, timestamp = line.split("\t")
-		
+		user, timestamp, venue = line.split("\t")
 		if user not in user2id:
 			user2id[user] = len(user2id)
 			id2user.append(user)
 		if venue not in venue2id:
-			venue2id[venue] = len(venue)
+			venue2id[venue] = len(venue2id)
 			id2venue.append(venue)
+		if timestamp not in time2id:
+			time2id[timestamp] = len(time2id)
+			id2time.append(timestamp)
 
 	venue_frequency = np.zeros(len(venue2id), dtype=np.float32)
-
 	for line in _train:
-		user, venue, timestamp = line.split("\t")
+		user, timestamp, venue = line.split("\t")
 		venue_frequency[venue2id[venue]] += 1
 		if user not in train:
 			train[user] = {"id":user2id[user], "checkins":[venue2id[venue]]}
 		else:
 			train[user]["checkins"].append(venue2id[venue])
+			# train[user]["tid"].append(time2id[timestamp])
 
 	for line in _validation:
-		user, venue, timestamp = line.split("\t")
+		user, timestamp, venue = line.split("\t")
 		venue_frequency[venue2id[venue]] += 1
 		if user not in validation:
-			validation[user] = {"id":user2id[user], "checkins":[venue2id[venue]]}
+			validation[user] = {"id":user2id[user],"checkins":[venue2id[venue]]}
 		else:
 			validation[user]["checkins"].append(venue2id[venue])
+			# validation[user]["tid"].append(time2id[timestamp])
 
 	for line in _test:
-		user, venue, timestamp = line.split("\t")
+		user, timestamp, venue = line.split("\t")
 		venue_frequency[venue2id[venue]] += 1
 		if user not in test:
 			test[user] = {"id":user2id[user], "checkins":[venue2id[venue]]}
 		else:
 			test[user]["checkins"].append(venue2id[venue])
+			# test[user]["tid"].append(time2id[timestamp])
 
 	return train, validation, test, user2id, id2user, venue2id, id2venue, venue_frequency
 
@@ -65,7 +71,8 @@ def make_input(_train, _validation, _test, RNN_STEPS):
 	train, validation, test = [], [], []
 
 	for _, value in _train.items():
-		user, checkins = value["id"], value["checkins"]
+		user, checkins = value["id"], value["checkins"],
+		# import pdb;pdb.set_trace()
 		if len(checkins) <= RNN_STEPS:
 			checkins = [0]*(RNN_STEPS - len(checkins) + 1) + checkins
 		for i in xrange(RNN_STEPS, len(checkins)):
@@ -75,14 +82,12 @@ def make_input(_train, _validation, _test, RNN_STEPS):
 		user, checkins = value["id"], value["checkins"]
 		if len(checkins) <= RNN_STEPS:
 			checkins = [0]*(RNN_STEPS - len(checkins) + 1) + checkins
-
 		validation.append((user, checkins[-1], checkins[-(1+RNN_STEPS):-1]))
 
 	for _, value in _test.items():
 		user, checkins = value["id"], value["checkins"]
 		if len(checkins) <= RNN_STEPS:
 			checkins = [0]*(RNN_STEPS - len(checkins) + 1) + checkins
-
 		test.append((user, checkins[-1], checkins[-(1+RNN_STEPS):-1]))
 
 	return train, validation, test
@@ -96,7 +101,7 @@ def batches(_data, BATCH_SIZE, SAMPLES_NUM, venue_frequency):
 		user = []
 		candidate = []
 		checkins = []
-		# samples = []
+		samples = []
 
 		left = i*BATCH_SIZE
 		right = min((i+1)*BATCH_SIZE, len(_data))

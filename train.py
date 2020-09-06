@@ -8,14 +8,19 @@ import model
 import utils
 import sys
 import time
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 torch.manual_seed(1)
+np.random.seed(1)
 
 # ==============================================
 ## DATA PATH
-TRAIN_DATA_PATH = "../../../../dataset/instagram/rnn/prediction/train_total.txt"
-VALIDATAION_DATA_PATH = "../../../../dataset/instagram/rnn/prediction/validation_total.txt"
-TEST_DATA_PATH = "../../../../dataset/instagram/rnn/prediction/test_total.txt"
+PATH = "./data/"
+DATA = 'taxi'  # ny, la, taxi
+TRAIN_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_train.tsv'
+VALIDATAION_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_valid.tsv'
+TEST_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_test.tsv'
 
 ## HYPER-PARAMETERS
 EMBEDDING_DIM = 50
@@ -47,6 +52,19 @@ def get_eval_score(candidate, rank):
 
 	return _mrr
 
+def get_acc(candidate, rank):
+    """target and scores are torch cuda Variable"""
+    acc = np.zeros((4, 1))
+    for i, p in enumerate(rank):  # enumerate for the number of targets
+		acc[3] += 1
+		t = candidate[i]
+		if t in p[:10] and t > 0:
+			acc[2] += 1  # top10
+		if t in p[:5] and t > 0:
+			acc[1] += 1  # top5
+		if t == p[0] and t > 0:
+			acc[0] += 1  # top1
+    return acc
 ## Training
 print("========================================")
 print("Training..")
@@ -58,7 +76,6 @@ criterion = nn.LogSigmoid()
 
 for i in xrange(EPOCHS):
 	# Training
-
 	drcf.train()
 	step = 0
 	loss = .0
@@ -77,43 +94,86 @@ for i in xrange(EPOCHS):
 		_loss = -criterion(drcf(input_user, input_candidate, input_checkins, input_samples)).sum()
 		_loss.backward()
 		optimizer.step()
-		loss+=_loss.cpu().data.numpy()[0]
+		# loss+=_loss.cpu().data.numpy()[0]
+		loss+=_loss.cpu().data.numpy()
 
 		# Printing Progress
 		step+=1
 		sys.stdout.write("\033[F")
 		sys.stdout.write("\033[K")
-		print("Process Training Epoch: [{}/{}] Batch: [{}/{}] Loss: {}".format(i+1, EPOCHS, step, batch_num, _loss.cpu().data.numpy()[0]))
+		print("Process Training Epoch: [{}/{}] Batch: [{}/{}] Loss: {}".format(i+1, EPOCHS, step, batch_num, _loss.cpu().data.numpy()))
 
 
 	if (i+1) % 10 == 0:
-		# Validation
-		drcf.eval()
-		step = 0
-		mrr = .0
-		batch_num = int(len(validation)/100) + 1
+		with torch.no_grad():
+			# Validation
+			drcf.eval()
+			step = 0
+			mrr = .0
+			batch_num = int(len(validation)/100) + 1
 
-		batches = utils.batches(validation, 100, SAMPLE_NUM, venue_frequency)
-		for batch in batches:
-			user, candidate, checkins, _ = batch
-			input_user = Variable(torch.cuda.LongTensor(user))
-			input_checkins = Variable(torch.cuda.LongTensor(checkins))
-			
-			# Optimizing
-			rank = drcf.module.evaluation(input_user, input_checkins).cpu().data.numpy()
-			mrr += get_eval_score(candidate, rank)
+			batches = utils.batches(validation, 100, SAMPLE_NUM, venue_frequency)
+			acc = [0, 0, 0, 0]  # top1, top5, top10, tot
+			for batch in batches:
+				user, candidate, checkins, _ = batch
+				input_user = Variable(torch.cuda.LongTensor(user))
+				input_checkins = Variable(torch.cuda.LongTensor(checkins))
+				
+				# Optimizing
+				rank = drcf.module.evaluation(input_user, input_checkins).cpu().data.numpy()
+				mrr += get_eval_score(candidate, rank)
+				batch_acc = get_acc(candidate, rank)
+				# import pdb;pdb.set_trace()
+				acc[0] += batch_acc[0]
+				acc[1] += batch_acc[1]
+				acc[2] += batch_acc[2]
+				acc[3] += batch_acc[3]
 
-			# Printing Progress
-			step+=1
+				# Printing Progress
+				step+=1
+				sys.stdout.write("\033[F")
+				sys.stdout.write("\033[K")
+				print("Process Evaluation Epoch: [{}/{}] Batch: [{}/{}] Batch Top1Acc: [{}]\n".format(i+1, EPOCHS, step, batch_num, batch_acc[0]/batch_acc[3]))
+
 			sys.stdout.write("\033[F")
 			sys.stdout.write("\033[K")
-			print("Process Evaluation Epoch: [{}/{}] Batch: [{}/{}]".format(i+1, EPOCHS, step, batch_num))
-
-		sys.stdout.write("\033[F")
-		sys.stdout.write("\033[K")
-		print("Process Epoch: [{}/{}] loss : [{}] / Eval: [{}]\n".format(i+1, EPOCHS, loss, mrr/len(validation)))
+			print("Process Epoch: [{}/{}] loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]\n".format(i+1, EPOCHS, loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
 
 	else:
 		sys.stdout.write("\033[F")
 		sys.stdout.write("\033[K")
-		print("Process Epoch: [{}/{}] loss : [{}]\n".format(i+1, EPOCHS, loss, ))
+		print("Process Epoch: [{}/{}] loss : [{}]\n".format(i+1, EPOCHS, loss))
+print("========================================")
+print("Testing..")
+with torch.no_grad():
+	drcf.eval()
+	step = 0
+	mrr = .0
+	batch_num = int(len(validation)/100) + 1
+
+	batches = utils.batches(validation, 100, SAMPLE_NUM, venue_frequency)
+	acc = [0, 0, 0, 0]  # top1, top5, top10, tot
+	for batch in batches:
+		user, candidate, checkins, _ = batch
+		input_user = Variable(torch.cuda.LongTensor(user), volatile=True)
+		input_checkins = Variable(torch.cuda.LongTensor(checkins), volatile=True)
+		
+		# Optimizing
+		rank = drcf.module.evaluation(input_user, input_checkins).cpu().data.numpy()
+		mrr += get_eval_score(candidate, rank)
+		batch_acc = get_acc(candidate, rank)
+		acc[0] += batch_acc[0]
+		acc[1] += batch_acc[1]
+		acc[2] += batch_acc[2]
+		acc[3] += batch_acc[3]
+
+		# Printing Progress
+		step+=1
+		sys.stdout.write("\033[F")
+		sys.stdout.write("\033[K")
+		print("Batch: [{}/{}] Batch Top1Acc: [{}]\n".format(step, batch_num, batch_acc[0]/batch_acc[3]))
+
+	sys.stdout.write("\033[F")
+	sys.stdout.write("\033[K")
+	print("Loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]\n".format(loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
+
