@@ -24,7 +24,7 @@ random.seed(RANDOM_SEED)
 # ==============================================
 ## DATA PATH
 PATH = "./data/"
-DATA = 'ny'  # ny, la, taxi
+DATA = 'taxi'  # ny, la, taxi
 TRAIN_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_train.tsv'
 VALIDATAION_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_valid.tsv'
 TEST_DATA_PATH = PATH + DATA + '/drcf_' + DATA + '_test.tsv'
@@ -146,7 +146,7 @@ for i in xrange(EPOCHS):
 
 			sys.stdout.write("\033[F")
 			sys.stdout.write("\033[K")
-			print("Process Epoch: [{}/{}] loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]\n".format(i+1, EPOCHS, loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
+			print("Process Epoch: [{}/{}] loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}] MRR: [{}]\n".format(i+1, EPOCHS, loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3],  mrr/len(validation)))
 
 	else:
 		sys.stdout.write("\033[F")
@@ -163,11 +163,11 @@ with torch.no_grad():
 	drcf.eval()
 	step = 0
 	mrr = .0
-	batch_num = int(len(validation)/100) + 1
+	batch_num = int(len(test)/100) + 1
 
-	batches = utils.batches(validation, 100, SAMPLE_NUM, venue_frequency)
+	batches = utils.batches(test, 100, SAMPLE_NUM, venue_frequency)
 	acc = [0, 0, 0, 0]  # top1, top5, top10, tot
-	ndcg = [0, 0, 0]  # @1, @5, @10
+	# ndcg = [0, 0, 0]  # @1, @5, @10
 	for batch in batches:
 		user, candidate, checkins, _ = batch
 		input_user = Variable(torch.cuda.LongTensor(user))
@@ -184,10 +184,10 @@ with torch.no_grad():
 		acc[2] += batch_acc[2]
 		acc[3] += batch_acc[3]
 
-		for i in r:
-			ndcg[0] += utils.ndcg_at_k(i, 1)
-			ndcg[1] += utils.ndcg_at_k(i, 5)
-			ndcg[2] += utils.ndcg_at_k(i, 10)
+		# for i in r:
+		# 	ndcg[0] += utils.ndcg_at_k(i, 1)
+		# 	ndcg[1] += utils.ndcg_at_k(i, 5)
+		# 	ndcg[2] += utils.ndcg_at_k(i, 10)
 
 		# Printing Progress
 		step+=1
@@ -197,5 +197,6 @@ with torch.no_grad():
 
 	sys.stdout.write("\033[F")
 	sys.stdout.write("\033[K")
-	print("Loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}]".format(loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3]))
-	print("NDCG@1: [{}] NDCG@5: [{}] NDCG@10: [{}]".format(ndcg[0]/acc[3][0], ndcg[1]/acc[3][0], ndcg[2]/acc[3][0]))
+	print("Loss : [{}] Top1Acc: [{}] Top5Acc: [{}] Top10Acc: [{}] MRR: [{}]\n".format(
+		loss, acc[0]/acc[3], acc[1]/acc[3], acc[2]/acc[3],  mrr/len(test)))
+	# print("NDCG@1: [{}] NDCG@5: [{}] NDCG@10: [{}]".format(ndcg[0]/acc[3][0], ndcg[1]/acc[3][0], ndcg[2]/acc[3][0]))
